@@ -4,6 +4,10 @@ from mcp.server.fastmcp import FastMCP
 
 API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
+# FastMCP reads these env vars automatically for SSE transport
+os.environ.setdefault("FASTMCP_HOST", "0.0.0.0")
+os.environ.setdefault("FASTMCP_PORT", os.getenv("PORT", "8080"))
+
 mcp = FastMCP("Trades MCP Server")
 
 
@@ -80,5 +84,4 @@ async def create_trade(
 
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8080))
-    mcp.run(transport="sse", host="0.0.0.0", port=port)
+    mcp.run(transport="sse")
