@@ -7,6 +7,5 @@ RUN pip install --no-cache-dir -r requirements.mcp.txt
 
 COPY mcp_server.py .
 
-EXPOSE 8080
-
-CMD ["sh", "-c", "python mcp_server.py"]
+# Force Railway to use the PORT env var
+CMD ["sh", "-c", "uvicorn mcp_server:create_app --host 0.0.0.0 --port ${PORT:-8080} --factory"]
