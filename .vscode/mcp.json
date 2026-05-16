@@ -2,7 +2,7 @@
   "servers": {
     "trades": {
       "type": "sse",
-      "url": "https://YOUR_DEPLOYED_URL/sse"
+      "url": "https://welcoming-analysis-production.up.railway.app/sse"
     }
   }
 }
