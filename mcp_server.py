@@ -1,10 +1,15 @@
 import os
 import httpx
+import uvicorn
 from mcp.server.fastmcp import FastMCP
 
 API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
-mcp = FastMCP("Trades MCP Server")
+mcp = FastMCP(
+    "Trades MCP Server",
+    host="0.0.0.0",
+    port=int(os.getenv("PORT", "8080")),
+)
 
 
 @mcp.tool()
@@ -79,12 +84,18 @@ async def create_trade(
         return response.json()
 
 
-def create_app():
-    """Factory function for uvicorn --factory mode."""
-    return mcp.sse_app()
-
-
 if __name__ == "__main__":
-    import uvicorn
     port = int(os.getenv("PORT", "8080"))
-    uvicorn.run(create_app(), host="0.0.0.0", port=port)
+    app = mcp.sse_app()
+
+    # Disable host header validation so Railway's proxy domain is accepted
+    config = uvicorn.Config(
+        app,
+        host="0.0.0.0",
+        port=port,
+        proxy_headers=True,
+        forwarded_allow_ips="*",
+    )
+    server = uvicorn.Server(config)
+    import asyncio
+    asyncio.run(server.serve())
