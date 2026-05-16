@@ -2,11 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt requirements.mcp.txt ./
-RUN pip install --no-cache-dir -r requirements.txt -r requirements.mcp.txt
+COPY requirements.mcp.txt .
+RUN pip install --no-cache-dir -r requirements.mcp.txt
 
 COPY mcp_server.py .
 
 EXPOSE 8080
 
-CMD ["python", "mcp_server.py"]
+CMD ["sh", "-c", "python mcp_server.py"]

@@ -1,6 +1,6 @@
 [build]
-dockerfilePath = "Dockerfile.mcp"
+dockerfilePath = "Dockerfile.api"
 
 [deploy]
-startCommand = "python mcp_server.py"
+startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT"
 restartPolicyType = "on_failure"

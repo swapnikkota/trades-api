@@ -1,7 +1,8 @@
+import os
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-API_BASE = "http://127.0.0.1:8000"
+API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
 mcp = FastMCP("Trades MCP Server")
 
@@ -79,4 +80,5 @@ async def create_trade(
 
 
 if __name__ == "__main__":
-    mcp.run(transport="sse")  # SSE for remote/deployed access
+    port = int(os.getenv("PORT", 8080))
+    mcp.run(transport="sse", host="0.0.0.0", port=port)
