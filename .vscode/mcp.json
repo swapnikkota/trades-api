@@ -1,0 +1,8 @@
+{
+  "servers": {
+    "trades": {
+      "type": "sse",
+      "url": "https://YOUR_DEPLOYED_URL/sse"
+    }
+  }
+}
