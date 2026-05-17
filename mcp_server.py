@@ -5,35 +5,26 @@ import uvicorn
 from mcp.server.fastmcp import FastMCP
 
 API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
-RAILWAY_DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN", "welcoming-analysis-production.up.railway.app")
 
-# ── Patch MCP host validation before anything else ────────────────────────────
+# ── Patch MCP host validation with a permissive security class ────────────────
 try:
-    from mcp.server.streamable_http import StreamableHTTPServerTransport
-    original_init = StreamableHTTPServerTransport.__init__
+    from mcp.server import streamable_http
 
-    def patched_init(self, *args, **kwargs):
-        original_init(self, *args, **kwargs)
-        # Replace the security check with a no-op
-        if hasattr(self, '_security'):
-            self._security = None
+    class AllowAllSecurity:
+        """Permissive security class that allows all hosts."""
+        async def validate_request(self, request, is_post=False):
+            return None  # None means no error response — request is allowed
 
-    StreamableHTTPServerTransport.__init__ = patched_init
-except Exception:
-    pass
+    _original_transport_init = streamable_http.StreamableHTTPServerTransport.__init__
 
-# Also patch transport_security directly
-try:
-    import mcp.server.transport_security as ts
-    ts.validate_host = lambda *args, **kwargs: None
-except Exception:
-    pass
+    def _patched_transport_init(self, *args, **kwargs):
+        _original_transport_init(self, *args, **kwargs)
+        self._security = AllowAllSecurity()
 
-try:
-    from mcp.server import transport_security
-    transport_security.validate_host = lambda *args, **kwargs: None
-except Exception:
-    pass
+    streamable_http.StreamableHTTPServerTransport.__init__ = _patched_transport_init
+    print("✓ MCP host validation patched successfully")
+except Exception as e:
+    print(f"⚠ Could not patch MCP security: {e}")
 
 # ──────────────────────────────────────────────────────────────────────────────
 
