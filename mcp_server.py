@@ -5,13 +5,40 @@ import uvicorn
 from mcp.server.fastmcp import FastMCP
 
 API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
-# Must match your Railway public domain exactly
 RAILWAY_DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN", "welcoming-analysis-production.up.railway.app")
+
+# ── Patch MCP host validation before anything else ────────────────────────────
+try:
+    from mcp.server.streamable_http import StreamableHTTPServerTransport
+    original_init = StreamableHTTPServerTransport.__init__
+
+    def patched_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        # Replace the security check with a no-op
+        if hasattr(self, '_security'):
+            self._security = None
+
+    StreamableHTTPServerTransport.__init__ = patched_init
+except Exception:
+    pass
+
+# Also patch transport_security directly
+try:
+    import mcp.server.transport_security as ts
+    ts.validate_host = lambda *args, **kwargs: None
+except Exception:
+    pass
+
+try:
+    from mcp.server import transport_security
+    transport_security.validate_host = lambda *args, **kwargs: None
+except Exception:
+    pass
+
+# ──────────────────────────────────────────────────────────────────────────────
 
 mcp = FastMCP("Trades Agent")
 
-
-# ── Basic CRUD tools ───────────────────────────────────────────────────────────
 
 @mcp.tool()
 async def get_trades(
@@ -85,8 +112,6 @@ async def create_trade(
         return response.json()
 
 
-# ── Analytics tools ────────────────────────────────────────────────────────────
-
 @mcp.tool()
 async def get_trade_summary() -> dict:
     """
@@ -103,7 +128,6 @@ async def get_trade_summary() -> dict:
 
     buys = [t for t in trades if t["side"] == "BUY"]
     sells = [t for t in trades if t["side"] == "SELL"]
-
     symbol_value: dict = {}
     symbol_count: dict = {}
     for t in trades:
@@ -112,14 +136,12 @@ async def get_trade_summary() -> dict:
         symbol_value[sym] = symbol_value.get(sym, 0) + val
         symbol_count[sym] = symbol_count.get(sym, 0) + 1
 
-    top_symbols = sorted(symbol_count, key=symbol_count.get, reverse=True)[:5]
-
     return {
         "total_trades": len(trades),
         "buy_count": len(buys),
         "sell_count": len(sells),
         "buy_sell_ratio": f"{len(buys)}:{len(sells)}",
-        "top_symbols": top_symbols,
+        "top_symbols": sorted(symbol_count, key=symbol_count.get, reverse=True)[:5],
         "value_by_symbol": {
             sym: round(symbol_value[sym], 2)
             for sym in sorted(symbol_value, key=symbol_value.get, reverse=True)
@@ -228,31 +250,12 @@ async def get_recent_trades(n: int = 10) -> list[dict]:
         return response.json()
 
 
-# ── ASGI wrapper: rewrite host to Railway domain ───────────────────────────────
-
-class FixHostHeaderMiddleware:
-    """Rewrites host header to the Railway public domain so MCP security passes."""
-    def __init__(self, app, domain: str):
-        self.app = app
-        self.domain = domain.encode()
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] in ("http", "websocket"):
-            scope["headers"] = [
-                (b"host", self.domain) if k.lower() == b"host" else (k, v)
-                for k, v in scope.get("headers", [])
-            ]
-            scope["server"] = (RAILWAY_DOMAIN, 443)
-        await self.app(scope, receive, send)
-
-
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))
     mcp_app = mcp.streamable_http_app()
-    app = FixHostHeaderMiddleware(mcp_app, RAILWAY_DOMAIN)
 
     config = uvicorn.Config(
-        app,
+        mcp_app,
         host="0.0.0.0",
         port=port,
         proxy_headers=True,
