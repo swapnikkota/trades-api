@@ -1,8 +1,8 @@
 {
   "servers": {
     "trades": {
-      "type": "sse",
-      "url": "https://welcoming-analysis-production.up.railway.app/sse"
+      "type": "http",
+      "url": "https://welcoming-analysis-production.up.railway.app/mcp"
     }
   }
 }

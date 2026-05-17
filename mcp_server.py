@@ -3,18 +3,10 @@ import asyncio
 import httpx
 import uvicorn
 from mcp.server.fastmcp import FastMCP
-from datetime import datetime
 
 API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
-os.environ.setdefault("FASTMCP_HOST", "0.0.0.0")
-os.environ.setdefault("FASTMCP_PORT", os.getenv("PORT", "8080"))
-
-mcp = FastMCP(
-    "Trades Agent",
-    host="0.0.0.0",
-    port=int(os.getenv("PORT", "8080")),
-)
+mcp = FastMCP("Trades Agent")
 
 
 # ── Basic CRUD tools ───────────────────────────────────────────────────────────
@@ -96,11 +88,8 @@ async def create_trade(
 @mcp.tool()
 async def get_trade_summary() -> dict:
     """
-    Get a high-level summary of all trades including:
-    - Total number of trades
-    - BUY vs SELL breakdown
-    - Most traded symbols
-    - Total value traded per symbol
+    Get a high-level summary of all trades including total count,
+    BUY vs SELL breakdown, most traded symbols, and total value per symbol.
     """
     async with httpx.AsyncClient() as client:
         response = await client.get(f"{API_BASE}/trades", params={"limit": 1000})
@@ -110,11 +99,9 @@ async def get_trade_summary() -> dict:
     if not trades:
         return {"message": "No trades found"}
 
-    total = len(trades)
     buys = [t for t in trades if t["side"] == "BUY"]
     sells = [t for t in trades if t["side"] == "SELL"]
 
-    # Value per symbol
     symbol_value: dict = {}
     symbol_count: dict = {}
     for t in trades:
@@ -126,7 +113,7 @@ async def get_trade_summary() -> dict:
     top_symbols = sorted(symbol_count, key=symbol_count.get, reverse=True)[:5]
 
     return {
-        "total_trades": total,
+        "total_trades": len(trades),
         "buy_count": len(buys),
         "sell_count": len(sells),
         "buy_sell_ratio": f"{len(buys)}:{len(sells)}",
@@ -151,9 +138,6 @@ async def get_largest_trades(top_n: int = 5) -> list[dict]:
         response.raise_for_status()
         trades = response.json()
 
-    if not trades:
-        return []
-
     for t in trades:
         t["total_value"] = round(t["quantity"] * t["price"], 2)
 
@@ -163,11 +147,8 @@ async def get_largest_trades(top_n: int = 5) -> list[dict]:
 @mcp.tool()
 async def get_trades_by_symbol_analysis(symbol: str) -> dict:
     """
-    Get a detailed analysis of trades for a specific symbol including:
-    - Total trades, BUY/SELL breakdown
-    - Average buy price and average sell price
-    - Total quantity bought and sold
-    - Net position (bought - sold)
+    Get a detailed analysis for a specific symbol including average buy/sell
+    price, total quantity, net position, and long/short status.
 
     Args:
         symbol: Ticker symbol to analyze e.g. AAPL
@@ -181,31 +162,27 @@ async def get_trades_by_symbol_analysis(symbol: str) -> dict:
         trades = response.json()
 
     if not trades:
-        return {"symbol": symbol.upper(), "message": "No trades found for this symbol"}
+        return {"symbol": symbol.upper(), "message": "No trades found"}
 
     buys = [t for t in trades if t["side"] == "BUY"]
     sells = [t for t in trades if t["side"] == "SELL"]
-
-    avg_buy_price = (
-        sum(t["price"] for t in buys) / len(buys) if buys else 0
-    )
-    avg_sell_price = (
-        sum(t["price"] for t in sells) / len(sells) if sells else 0
-    )
+    avg_buy = sum(t["price"] for t in buys) / len(buys) if buys else 0
+    avg_sell = sum(t["price"] for t in sells) / len(sells) if sells else 0
     total_bought = sum(t["quantity"] for t in buys)
     total_sold = sum(t["quantity"] for t in sells)
+    net = total_bought - total_sold
 
     return {
         "symbol": symbol.upper(),
         "total_trades": len(trades),
         "buy_count": len(buys),
         "sell_count": len(sells),
-        "avg_buy_price": round(avg_buy_price, 2),
-        "avg_sell_price": round(avg_sell_price, 2),
+        "avg_buy_price": round(avg_buy, 2),
+        "avg_sell_price": round(avg_sell, 2),
         "total_quantity_bought": round(total_bought, 4),
         "total_quantity_sold": round(total_sold, 4),
-        "net_position": round(total_bought - total_sold, 4),
-        "net_position_status": "LONG" if total_bought > total_sold else "SHORT" if total_sold > total_bought else "FLAT",
+        "net_position": round(net, 4),
+        "net_position_status": "LONG" if net > 0 else "SHORT" if net < 0 else "FLAT",
     }
 
 
@@ -213,7 +190,6 @@ async def get_trades_by_symbol_analysis(symbol: str) -> dict:
 async def detect_large_trades(threshold_value: float = 10000.0) -> list[dict]:
     """
     Detect trades where total value (quantity x price) exceeds a threshold.
-    Useful for flagging unusually large positions.
 
     Args:
         threshold_value: Minimum trade value to flag (default $10,000)
@@ -252,7 +228,7 @@ async def get_recent_trades(n: int = 10) -> list[dict]:
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))
-    app = mcp.sse_app()
+    app = mcp.streamable_http_app()
     config = uvicorn.Config(
         app,
         host="0.0.0.0",
