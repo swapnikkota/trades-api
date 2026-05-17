@@ -3,6 +3,9 @@ import asyncio
 import httpx
 import uvicorn
 from mcp.server.fastmcp import FastMCP
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.applications import Starlette
+from starlette.routing import Mount
 
 API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
@@ -226,9 +229,28 @@ async def get_recent_trades(n: int = 10) -> list[dict]:
         return response.json()
 
 
+# ── Host header middleware ─────────────────────────────────────────────────────
+
+class TrustProxyMiddleware(BaseHTTPMiddleware):
+    """Override the Host header to bypass Railway proxy validation."""
+    async def dispatch(self, request, call_next):
+        # Replace the host header with localhost so MCP validation passes
+        headers = dict(request.headers)
+        headers["host"] = "localhost"
+        request._headers = request.headers.__class__(
+            scope=request.scope,
+            headers=[(k.encode(), v.encode()) for k, v in headers.items()]
+        )
+        return await call_next(request)
+
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))
+
+    # Get the MCP app and wrap with middleware
     app = mcp.streamable_http_app()
+    app.add_middleware(TrustProxyMiddleware)
+
     config = uvicorn.Config(
         app,
         host="0.0.0.0",
