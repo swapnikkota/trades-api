@@ -5,6 +5,8 @@ import uvicorn
 from mcp.server.fastmcp import FastMCP
 
 API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+# Must match your Railway public domain exactly
+RAILWAY_DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN", "welcoming-analysis-production.up.railway.app")
 
 mcp = FastMCP("Trades Agent")
 
@@ -226,32 +228,28 @@ async def get_recent_trades(n: int = 10) -> list[dict]:
         return response.json()
 
 
-# ── ASGI wrapper to fix host header for Railway proxy ─────────────────────────
+# ── ASGI wrapper: rewrite host to Railway domain ───────────────────────────────
 
 class FixHostHeaderMiddleware:
-    """
-    Rewrites the host header in the ASGI scope directly,
-    bypassing Railway's proxy host validation in the MCP server.
-    """
-    def __init__(self, app):
+    """Rewrites host header to the Railway public domain so MCP security passes."""
+    def __init__(self, app, domain: str):
         self.app = app
+        self.domain = domain.encode()
 
     async def __call__(self, scope, receive, send):
         if scope["type"] in ("http", "websocket"):
-            # Rewrite headers in scope to replace host with localhost
-            headers = [
-                (b"host", b"localhost") if k.lower() == b"host" else (k, v)
+            scope["headers"] = [
+                (b"host", self.domain) if k.lower() == b"host" else (k, v)
                 for k, v in scope.get("headers", [])
             ]
-            scope["headers"] = headers
-            scope["server"] = ("localhost", scope.get("server", ("localhost", 8080))[1])
+            scope["server"] = (RAILWAY_DOMAIN, 443)
         await self.app(scope, receive, send)
 
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))
     mcp_app = mcp.streamable_http_app()
-    app = FixHostHeaderMiddleware(mcp_app)
+    app = FixHostHeaderMiddleware(mcp_app, RAILWAY_DOMAIN)
 
     config = uvicorn.Config(
         app,
