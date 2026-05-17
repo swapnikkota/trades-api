@@ -3,9 +3,6 @@ import asyncio
 import httpx
 import uvicorn
 from mcp.server.fastmcp import FastMCP
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.applications import Starlette
-from starlette.routing import Mount
 
 API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
@@ -229,27 +226,32 @@ async def get_recent_trades(n: int = 10) -> list[dict]:
         return response.json()
 
 
-# ── Host header middleware ─────────────────────────────────────────────────────
+# ── ASGI wrapper to fix host header for Railway proxy ─────────────────────────
 
-class TrustProxyMiddleware(BaseHTTPMiddleware):
-    """Override the Host header to bypass Railway proxy validation."""
-    async def dispatch(self, request, call_next):
-        # Replace the host header with localhost so MCP validation passes
-        headers = dict(request.headers)
-        headers["host"] = "localhost"
-        request._headers = request.headers.__class__(
-            scope=request.scope,
-            headers=[(k.encode(), v.encode()) for k, v in headers.items()]
-        )
-        return await call_next(request)
+class FixHostHeaderMiddleware:
+    """
+    Rewrites the host header in the ASGI scope directly,
+    bypassing Railway's proxy host validation in the MCP server.
+    """
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            # Rewrite headers in scope to replace host with localhost
+            headers = [
+                (b"host", b"localhost") if k.lower() == b"host" else (k, v)
+                for k, v in scope.get("headers", [])
+            ]
+            scope["headers"] = headers
+            scope["server"] = ("localhost", scope.get("server", ("localhost", 8080))[1])
+        await self.app(scope, receive, send)
 
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8080"))
-
-    # Get the MCP app and wrap with middleware
-    app = mcp.streamable_http_app()
-    app.add_middleware(TrustProxyMiddleware)
+    mcp_app = mcp.streamable_http_app()
+    app = FixHostHeaderMiddleware(mcp_app)
 
     config = uvicorn.Config(
         app,
