@@ -9,6 +9,18 @@ Usage:
   analyze_codebase.py <path> --ext .py .js    # limit to specific file types
   analyze_codebase.py <path> --schema myschema
 
+# Basic scan — just find and list all SQL queries
+python3 .github/skills/pg-inspector-skill/scripts/analyze_codebase.py .
+
+# Full analysis — extract queries + run EXPLAIN on each SELECT
+python3 .github/skills/pg-inspector-skill/scripts/analyze_codebase.py . --explain
+
+# Save as a report
+python3 .github/skills/pg-inspector-skill/scripts/analyze_codebase.py . --explain > report.txt
+
+# Scan only specific file types
+python3 .github/skills/pg-inspector-skill/scripts/analyze_codebase.py . --explain --ext .py .sql
+
 Supported patterns (auto-detected):
   - Raw SQL strings:  SELECT ... FROM ...
   - ORM-style:        .where(  .filter(  .query(  .execute(  .raw(
