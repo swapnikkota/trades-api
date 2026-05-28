@@ -59,6 +59,7 @@ Prints connected server version + database name on success.
 | Explain / analyse a query     | `scripts/explain_query.py "<SQL>" [--analyze] [--json]` |
 | Index recommendations         | `scripts/index_advisor.py [schema]`  |
 | Index advice for a query      | `scripts/index_advisor.py --query "<SQL>"` |
+| Scan codebase for SQL queries | `scripts/analyze_codebase.py <path> [--explain]` |
 | Full database overview        | Run all of the above in sequence     |
 
 ### 3. Present Results
@@ -74,6 +75,34 @@ Prints connected server version + database name on success.
   clearly
 - If the user asks for sample data, show max 5 rows by default unless they
   specify otherwise
+
+---
+
+## Codebase Query Analyzer
+
+When the user wants to scan their codebase for SQL queries and analyse them:
+
+1. Run `scripts/analyze_codebase.py <path>` to extract and list all queries
+2. Add `--explain` to also run `EXPLAIN` on every SELECT and flag issues
+3. Add `--schema <name>` if the schema isn't `public`
+4. Add `--ext .py .js` to limit which file types are scanned
+
+**What it detects in source files:**
+- Raw SQL strings (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `WITH`)
+- Multiline strings and template literals
+- ORM patterns: `.execute(`, `.query(`, `.raw(`, `.filter(`, `@Query`
+- Works with: Python, JavaScript, TypeScript, Java, Kotlin, Go, Ruby, PHP, SQL
+
+**What it flags per query:**
+- Sequential scans with filterable columns → suggests indexes
+- Full table scans (no filter)
+- Expensive joins
+
+**Output:** a summary table of all queries found with file + line number,
+plus a flagged list of queries with potential performance issues and suggested fixes.
+
+> Use `--explain` on a dev/staging DB with realistic data for best results.
+> Pipe to a file for a shareable report: `python3 analyze_codebase.py . --explain > report.txt`
 
 ---
 
