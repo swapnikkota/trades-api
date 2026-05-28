@@ -172,6 +172,18 @@ When the user asks to explain, analyse, or optimise a SQL query:
   if you need to write ad-hoc queries or customise behaviour)
 - `references/pg_types.md` — PostgreSQL type reference for explaining column
   types to users
+- `references/vacuum_tuning.md` — VACUUM, autovacuum tuning, bloat detection,
+  XID wraparound. Load when user asks about bloat, dead tuples, table size, or
+  VACUUM.
+- `references/connection_pooling.md` — Pool sizing formulas, PgBouncer config,
+  idle-in-transaction timeouts. Load when user asks about connections, pooling,
+  or connection limits.
+- `references/partitioning.md` — Range/list/hash partitioning, partition
+  pruning, pg_partman, fast data expiry. Load when user asks about large tables,
+  partitioning, or data retention.
+- `references/query_performance.md` — N+1 patterns, keyset pagination, index
+  pitfalls, work_mem, EXPLAIN reading guide. Load when user asks about slow
+  queries or query optimisation.
 
 ---
 
