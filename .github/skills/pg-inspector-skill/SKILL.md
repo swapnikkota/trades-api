@@ -10,7 +10,8 @@ description: >
   optimise a SQL query. Trigger on phrases like "inspect the database", "show me
   the schema", "what tables exist", "describe this table", "list columns", "show
   indexes", "explain this query", "why is my query slow", "analyse this SQL",
-  "query plan", or any question about the DB's shape, contents, or performance.
+  "query plan", "suggest indexes", "missing indexes", "unused indexes",
+  "index advice", or any question about the DB's shape, contents, or performance.
 ---
 
 # PostgreSQL Inspector Skill
@@ -56,6 +57,8 @@ Prints connected server version + database name on success.
 | Row counts                    | `scripts/row_counts.py [schema]`     |
 | Sample rows                   | `scripts/sample_data.py <schema.table> [limit]` |
 | Explain / analyse a query     | `scripts/explain_query.py "<SQL>" [--analyze] [--json]` |
+| Index recommendations         | `scripts/index_advisor.py [schema]`  |
+| Index advice for a query      | `scripts/index_advisor.py --query "<SQL>"` |
 | Full database overview        | Run all of the above in sequence     |
 
 ### 3. Present Results
@@ -71,6 +74,32 @@ Prints connected server version + database name on success.
   clearly
 - If the user asks for sample data, show max 5 rows by default unless they
   specify otherwise
+
+---
+
+## Index Advisor
+
+When the user asks for index recommendations, missing indexes, or wants to
+optimise a schema:
+
+1. Run `scripts/index_advisor.py [schema]` for a full schema-wide report
+2. Or run `scripts/index_advisor.py --query "<SQL>"` for a specific query
+3. Present suggestions grouped by priority (🔴 HIGH → 🟡 MEDIUM)
+4. Always include the ready-to-run DDL so the user can copy-paste it
+5. Highlight cleanup opportunities (unused / duplicate indexes) separately
+
+**What it analyses:**
+- **Sequential scan ratio** from `pg_stat_user_tables` — tables getting mostly
+  seq scans with many rows are flagged
+- **FK columns without indexes** — foreign key columns that lack a supporting
+  index (cause slow JOINs and ON DELETE cascades)
+- **Unused indexes** — indexes with zero scans since last stats reset
+- **Duplicate indexes** — two indexes covering the same column set
+- **Query-specific** — parses `EXPLAIN` output for a given SQL and maps seq
+  scans to specific columns
+
+> Stats come from `pg_stat_*` counters. For best results run on a production
+> instance with real traffic. Suggest `ANALYZE` if stats look stale.
 
 ---
 
