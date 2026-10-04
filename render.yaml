@@ -1,0 +1,41 @@
+services:
+  # Trades REST API — the actual data layer (asyncpg -> Postgres/Neon).
+  - type: web
+    runtime: python
+    name: trades-api
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      # Full Neon connection string for the shared database ("neondb" by
+      # default). This is the SAME value as trade-agent-project's
+      # DATABASE_URL — it's one Neon database holding both apps' data via
+      # separate schemas, not two separate databases. asyncpg parses
+      # "?sslmode=require" in the DSN itself (unlike SQLAlchemy's asyncpg
+      # dialect), so paste Neon's connection string as-is here.
+      - key: DATABASE_URL
+        sync: false
+      # This app's schema within the shared database — must already exist
+      # (create it once via Neon's SQL editor:
+      # CREATE SCHEMA IF NOT EXISTS tradesdb;) and have schema.sql run
+      # against it. Separate from trade-agent-project's "trade_agent"
+      # schema.
+      - key: DB_SCHEMA
+        value: tradesdb
+
+  # Trade MCP server — the 8-tool version (get_trades, get_trade_by_id,
+  # create_trade, get_trade_summary, get_largest_trades,
+  # get_trades_by_symbol_analysis, detect_large_trades, get_recent_trades).
+  # Calls the trades-api service above over plain HTTP.
+  - type: web
+    runtime: python
+    name: trades-mcp
+    plan: free
+    buildCommand: pip install -r requirements.mcp.txt
+    startCommand: python mcp_server.py
+    envVars:
+      # Set this to the trades-api service's Render URL once it's deployed
+      # (e.g. https://trades-api-xxxx.onrender.com) — no trailing slash.
+      - key: API_BASE_URL
+        sync: false

@@ -1,4 +1,9 @@
-mcp[cli]>=1.0.0
+# Upper-bounded: mcp_server.py's host-validation patch reaches into
+# mcp.server.streamable_http internals (StreamableHTTPServerTransport),
+# which could change shape in a future major release. Tested against
+# 1.27.0 — bump the ceiling deliberately after re-testing the patch still
+# applies, rather than letting it drift silently.
+mcp[cli]>=1.0.0,<2.0.0
 httpx>=0.27.0
 uvicorn>=0.29.0
 starlette>=0.37.0
