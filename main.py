@@ -72,31 +72,3 @@ async def create_trade(trade: TradeCreate):
 @app.get("/health")
 async def health():
     return {"status": "ok"}
-
-@app.get("/debug/db")
-async def debug_db():
-    """TEMPORARY diagnostic endpoint — remove after schema debugging is done."""
-    async with app.state.db.acquire() as conn:
-        search_path = await conn.fetchval("SHOW search_path;")
-        current_user = await conn.fetchval("SELECT current_user;")
-        current_db = await conn.fetchval("SELECT current_database();")
-        tables = await conn.fetch(
-            "SELECT table_schema, table_name FROM information_schema.tables WHERE table_name = 'trades';"
-        )
-        try:
-            unqualified = await conn.fetch("SELECT * FROM trades LIMIT 1;")
-            unqualified_ok = True
-            unqualified_err = None
-        except Exception as e:
-            unqualified_ok = False
-            unqualified_err = repr(e)
-    return {
-        "DB_SCHEMA_env": os.getenv("DB_SCHEMA"),
-        "search_path_reported_by_server": search_path,
-        "current_user": current_user,
-        "current_database": current_db,
-        "trades_tables_visible": [dict(t) for t in tables],
-        "unqualified_select_ok": unqualified_ok,
-        "unqualified_select_error": unqualified_err,
-    }
-
